@@ -11,12 +11,13 @@
 
 using namespace std;
 
-#define WORKER_DEBUG std::cout << "Worker[" << worker_name << "]  "
+#define WORKER_DEBUG std::cout << "Worker[" << worker_name << "] ID[" << worker_id << "]"
 
 Worker::Worker(std::string name, proc_callback writer, proc_callback verifier) :
 		worker_name(name), Writer_callback(writer), Verifier_callback(verifier), failed_cnt(0), success_cnt(0)
 {
-	//WORKER_DEBUG << " Info: " << "Worker created \n";
+	set_object_unique_id();
+	WORKER_DEBUG << " Info: " << "Worker created \n";
 }
 
 
@@ -35,7 +36,13 @@ Worker::~Worker()
 	{
 		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-	//WORKER_DEBUG << " Info: " << "Worker deleted\n";
+	WORKER_DEBUG << " Info: " << "Worker deleted\n";
+}
+
+void Worker::set_object_unique_id()
+{
+	static uint32_t unique_id = 0;
+	worker_id = unique_id++;
 }
 
 
@@ -45,7 +52,6 @@ void Worker::start_process()
 	try
 	{
 		//WORKER_DEBUG << " Info: " << "Starting\n";
-
 		//Start writer thread , which will wait for start writing
 		worker_thread.start_thread(*this);
 	}
@@ -123,7 +129,7 @@ void Worker::Worker_thread_params::thread_function(Worker& WorkerObject)
 				//is required to exit
 				if(do_exit)
 				{
-					std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Exiting thread\n";
+					std::cout << "Worker[" << WorkerObject.get_worker_name() << "] ID[" << WorkerObject.worker_id << "] Exiting thread\n";
 					break;
 				}
 
@@ -133,7 +139,7 @@ void Worker::Worker_thread_params::thread_function(Worker& WorkerObject)
 			}
 			catch(std::exception& e)
 			{
-				std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Error found " << e.what() << "\n";
+				std::cout << "Worker[" << WorkerObject.get_worker_name() << "] ID[" << WorkerObject.worker_id << "] Error found " << e.what() << "\n";
 			}
 		}
 	}
@@ -163,8 +169,14 @@ void Worker :: do_work(void)
 			//call Verifier
 			if(ptr.use_count())
 			{
-				//WORKER_DEBUG << " Info: " << "Calling verifying callback \n";
 				verify_failed_cnt = ptr->verify_value(start_value,Verifier_callback);
+			}
+			else
+			{
+				std::cout << "\n";
+				WORKER_DEBUG << " Warn: " << "No Verifier set , assume that writing failed\n";
+				//verifier not set assume as all failed
+				verify_failed_cnt = write_success_cnt;
 			}
 
 			//Update Status

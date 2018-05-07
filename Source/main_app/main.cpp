@@ -4,6 +4,7 @@
 *
 * \file main.cpp
 */
+#include <signal.h>
 #include<functional>
 #include<iostream>
 #include<chrono>
@@ -18,6 +19,15 @@ using namespace std::placeholders;
 #define MAX_OBJECT_COUNT 4
 
 std::thread gPrimaryThread;
+bool do_exit = false;
+
+void Exit_Singal_handler(int sig)
+{
+	std::cout << "\nCancling Primary thread due to signal event \n";
+	pthread_cancel(gPrimaryThread.native_handle());
+	do_exit = true;
+}
+
 
 void primary_thread()
 {
@@ -51,27 +61,24 @@ void primary_thread()
 
 	do
 	{
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		w1->write_value(100);
-		w2->write_value(200);
-		w3->write_value(300);
-		w4->write_value(400);
-
-		std::cout << "Is required to run continue[y/n]\n";
-		bool is_continue = false;
+		std::cout << "\nAre you want to start write and verify process [y/n]: ";
 		uint8_t choise;
 		std::cin >> choise;
 
 		if((choise == 'y') || (choise == 'Y'))
 		{
+			w1->write_value(100);
+			w2->write_value(200);
+			w3->write_value(300);
+			w4->write_value(400);
 			continue;
 		}
-
-		w1->print_statics();
-		w2->print_statics();
-		w3->print_statics();
-		w4->print_statics();
-		break;
+		else
+		{
+			//Exit from thread
+			do_exit = true;
+			break;
+		}
 	}while(true);
 }
 
@@ -80,7 +87,17 @@ void primary_thread()
 
 int main()
 {
+	//register signal handler
+	signal(SIGINT, Exit_Singal_handler);
+
+	//Start main thread
 	gPrimaryThread = std::thread(primary_thread);
+
+	//Waiting for any signal
+	while(!do_exit)
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
 	gPrimaryThread.join();
 	return 0;
 }

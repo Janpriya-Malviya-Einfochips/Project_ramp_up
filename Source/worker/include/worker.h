@@ -80,6 +80,9 @@ private:
 
 	}Wrkr_th;
 
+	//! worker id
+	uint16_t worker_id;
+
 	//! call back function for verifier or writer
 	proc_callback Writer_callback;
 
@@ -109,7 +112,8 @@ private:
 	//! Do work
 	void do_work(void);
 
-
+	//! set unique id
+	void  set_object_unique_id();
 public:
 
     /**
@@ -132,7 +136,7 @@ public:
      */
 	void  start_process();
 
-    /**
+	/**
      * Stop all running threads
      * \param[in] void
      */

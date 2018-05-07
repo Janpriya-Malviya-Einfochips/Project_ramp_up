@@ -27,7 +27,7 @@ uint16_t shared_object::write_object(uint16_t start_from)
 
 	try
 	{
-		std::lock_guard<std::mutex> lock(object_locker);
+		//std::lock_guard<std::mutex> lock(object_locker);
 
 		for(write_word_count = 0 ; write_word_count < block_size ; ++write_word_count,++start_from)
 		{
@@ -48,7 +48,7 @@ uint16_t shared_object::verify_object(uint16_t start_from)
 
 	try
 	{
-		std::lock_guard<std::mutex> lock(object_locker);
+		//std::lock_guard<std::mutex> lock(object_locker);
 
 		for(uint16_t idx = 0 ; idx < block_size ; ++idx,++start_from)
 		{
