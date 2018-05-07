@@ -7,35 +7,18 @@
 
 #include<iostream>
 #include<unistd.h>
-#include "../include/worker.h"
-
+#include "worker.h"
 
 using namespace std;
 
 #define WORKER_DEBUG std::cout << "Worker[" << worker_name << "]  "
-#define WORKER_THREAD_DEBUG std::cout << "Worker[" << thread.thread_name << "]  "
 
-Worker::Worker(std::string name, Worker::proc_callback writer,
-		Worker::proc_callback verifier) : worker_name(name)
+Worker::Worker(std::string name, proc_callback writer, proc_callback verifier) :
+		worker_name(name), Writer_callback(writer), Verifier_callback(verifier), failed_cnt(0), success_cnt(0)
 {
-
-	//Set Thread name
-	writer_thread.thread_name  = name + "_WriterThread";
-
-	//set writer callback
-	writer_thread.callback = writer;
-
-	//Set Thread name
-	verifier_thread.thread_name  = name + "_VerifierThread";
-
-	//set verifier callback
-	verifier_thread.callback = verifier;
-
-	//Start all threads
-	start_process();
-
-	WORKER_DEBUG << " Info: " << "Worker created \n";
+	//WORKER_DEBUG << " Info: " << "Worker created \n";
 }
+
 
 Worker::~Worker()
 {
@@ -44,21 +27,33 @@ Worker::~Worker()
 	{
 		//Stop all running threads
 		stop_process();
+
+		//Print thread statics
+		print_statics();
 	}
 	catch(std::exception& e)
 	{
 		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-	WORKER_DEBUG << " Info: " << "Worker deleted\n";
+	//WORKER_DEBUG << " Info: " << "Worker deleted\n";
 }
+
 
 void Worker::start_process()
 {
-	//start writer thread
-	writer_thread.proc_thread = std::thread(&Worker::thread_function, this,std::ref(writer_thread));
+	//Exit all running threads
+	try
+	{
+		//WORKER_DEBUG << " Info: " << "Starting\n";
 
-	//start verifier thread
-	verifier_thread.proc_thread = std::thread(&Worker::thread_function, this,std::ref(verifier_thread));
+		//Start writer thread , which will wait for start writing
+		worker_thread.start_thread(*this);
+	}
+	catch(std::exception& e)
+	{
+		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
+	}
+	//WORKER_DEBUG << " Info: " << "Worker started\n";
 }
 
 void Worker::stop_process()
@@ -66,9 +61,116 @@ void Worker::stop_process()
 	//Exit all running threads
 	try
 	{
-		//Stop all running threads
-		stop_thread(writer_thread);
-		stop_thread(verifier_thread);
+		//WORKER_DEBUG << " Info: " << "Stopping\n";
+
+		//Start writer thread , which will wait for start writing
+		worker_thread.stop_thread();
+	}
+	catch(std::exception& e)
+	{
+		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
+	}
+	//WORKER_DEBUG << " Info: " << "Worker stopped successfully\n";
+}
+
+
+void Worker::Worker_thread_params::start_thread(Worker& WorkerObject)
+{
+	//lock mutex so no one can change parameters
+	std::lock_guard<std::mutex> lock(get_set_lock);
+
+	//set exit false
+	do_exit = false;
+
+	//Start thread function
+	proc_thread = std::thread(&Worker::Worker_thread_params::thread_function,this,std::ref(WorkerObject));
+}
+
+void Worker::Worker_thread_params::stop_thread(void)
+{
+	{
+		//lock mutex so no one can change parameters
+		std::lock_guard<std::mutex> lock(get_set_lock);
+
+		//set exit false
+		do_exit = true;
+
+		//Notify thread
+		proc_condition_event.notify_one();
+	}
+
+	//wait for rejoin
+	proc_thread.join();
+}
+
+void Worker::Worker_thread_params::thread_function(Worker& WorkerObject)
+{
+	while(true)
+	{
+		//std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Thread running.\n";
+
+		//Waiting on condition variable
+		std::unique_lock<std::mutex> lock(proc_condition_lock);
+		proc_condition_event.wait(lock);
+
+		//std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Event received \n";
+		{
+			//lock mutex first
+			std::lock_guard<std::mutex> lock(get_set_lock);
+
+			try
+			{
+				//is required to exit
+				if(do_exit)
+				{
+					std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Exiting thread\n";
+					break;
+				}
+
+				//Perform assigned work algorithm
+				//std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " do assigned job \n";
+				WorkerObject.do_work();
+			}
+			catch(std::exception& e)
+			{
+				std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Error found " << e.what() << "\n";
+			}
+		}
+	}
+}
+
+//! Do work
+void Worker :: do_work(void)
+{
+	try
+	{
+		// call writer
+		if(Writer_callback)
+		{
+			//success count
+			uint32_t write_success_cnt = 0;
+
+			//success count
+			uint32_t verify_failed_cnt = 0;
+
+			//called write callback
+			//WORKER_DEBUG << " Info: " << "Calling writing callback \n";
+			write_success_cnt = Writer_callback(start_value);
+
+			//Inform next work to verify my data
+			std::shared_ptr<Worker> ptr = mNxt_worker.lock();
+
+			//call Verifier
+			if(ptr.use_count())
+			{
+				//WORKER_DEBUG << " Info: " << "Calling verifying callback \n";
+				verify_failed_cnt = ptr->verify_value(start_value,Verifier_callback);
+			}
+
+			//Update Status
+			failed_cnt  += verify_failed_cnt;
+			success_cnt += (write_success_cnt - verify_failed_cnt);
+		}
 	}
 	catch(std::exception& e)
 	{
@@ -76,99 +178,49 @@ void Worker::stop_process()
 	}
 }
 
-void Worker::thread_function(W_thread& thread)
+void Worker::write_value(uint32_t value)
 {
-	WORKER_THREAD_DEBUG << ": Start Running\n";
+	//WORKER_DEBUG << " Info: " << "Start writing on shared object : start-> " << value << "\n";
 
-	while(true)
-	{
-		try
-		{
-			//wait for notifier
-			std::unique_lock<std::mutex> lock(thread.proc_condition_lock);
-			thread.proc_event.wait(lock);
+	//lock mutex so no one can change parameters
+	std::lock_guard<std::mutex> lock(worker_thread.get_set_lock);
 
-			WORKER_THREAD_DEBUG << ": Info : condition ticked\n";
-			{
-				//lock mutex first
-				std::lock_guard<std::mutex> lock(thread.get_set_lock);
+	//set start value
+	start_value = value;
 
-				//is required to exit
-				if(thread.do_exit)
-				{
-					WORKER_THREAD_DEBUG << ": Info : Exiting thread\n";
-					break;
-				}
-
-				//is callbcak set
-				if(thread.callback)
-				{
-					WORKER_THREAD_DEBUG << ": Info : Calling callback \n";
-					thread.callback(10,10);
-				}
-			}
-		}
-		catch(std::exception& e)
-		{
-			WORKER_THREAD_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
-		}
-	}
+	//Notify thread
+	worker_thread.proc_condition_event.notify_one();
+	//WORKER_DEBUG << " Info: " << "Inform worker successfully \n";
 }
 
-void Worker::stop_thread(W_thread& thread)
+void Worker :: set_next_worker(std::weak_ptr<Worker> next_worker)
 {
+	//lock mutex so no one can change parameters
+	std::lock_guard<std::mutex> lock(worker_thread.get_set_lock);
 
-	WORKER_THREAD_DEBUG << " Info: force exiting thread \n";
+	//set next worker
+	mNxt_worker =  next_worker;
+}
 
+uint32_t Worker :: verify_value(uint32_t value,proc_callback verifier)
+{
+	//success count
+	uint32_t verify_failed_cnt = 0;
+
+	//WORKER_DEBUG << " Info: " << "Verifying on shared object : start-> " << value << "\n";
 	try
 	{
-		//Set exit
-		thread.set_exit();
-		std::lock_guard<std::mutex> lock(thread.get_set_lock);
-
-		//Notify thread
-		thread.proc_event.notify_one();
-
-		WORKER_THREAD_DEBUG << " Info: waiting for rejoin\n";
-
-		//Waiting for thread  exit
-		thread.proc_thread.join();
-
-		WORKER_THREAD_DEBUG << " Info: Exited\n";
+		if(verifier)
+		{
+			//WORKER_DEBUG << " Info: " << "Calling verifier \n";
+			verify_failed_cnt = verifier(value);
+		}
 	}
 	catch(std::exception& e)
 	{
-		WORKER_THREAD_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
+		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-}
-
-
-void Worker::write_value(uint32_t value)
-{
-	//lock mutex first
-	//std::lock_guard<std::mutex> lock(writer_thread.proc_condition_lock);
-
-	WORKER_DEBUG << " Info: " << "Start writing on shared object : start-> " << value << "\n";
-
-	//Start value
-	writer_thread.set_start_value(value);
-
-	//Notify thread
-	writer_thread.proc_event.notify_one();
-}
-
-void Worker::verify_value(uint32_t value)
-{
-	WORKER_DEBUG << " Info: " << "Start Verifing on shared object : start-> " << value << "\n";
-
-	//lock mutex first
-	//std::lock_guard<std::mutex> lock(verifier_thread.proc_condition_lock);
-
-	//Start value
-	verifier_thread.set_start_value(value);
-
-	//Notify thread
-	verifier_thread.proc_event.notify_one();
+	return verify_failed_cnt;
 }
 
 std::string Worker::get_worker_name()
@@ -176,54 +228,7 @@ std::string Worker::get_worker_name()
 	return worker_name;
 }
 
-//void Worker::add_success(uint32_t count) {
-//}
-
-//void Worker::add_failer(uint32_t count) {/
-//}
-
-//void Worker::print_stats() {
-//}
-
-void test_1(uint32_t i,uint32_t j)
+void Worker::print_statics()
 {
-	cout<<"testz_1 called \n";
-}
-
-void test_2(uint32_t i,uint32_t j)
-{
-	cout<<"testz_2 called \n";
-}
-int main()
-{
-	auto fn_1 = &test_1;
-	auto fn_2 = &test_2;
-
-
-	Worker w("w1",fn_1,fn_2);
-	//Worker w1("w1",fn_1,fn_2);
-	//Worker w2("w2",fn_1,fn_2);
-	//Worker w3("w3",fn_1,fn_2);
-	//sleep(3);
-	cout<<"\n\n\n\n\nwriting value\n";
-	w.write_value(10);
-	//sleep(3);
-	cout<<"\n\n\n\n\nVerifiing value\n";
-	//w.verify_value(10);
-	//sleep(3);
-	return 0;
-}
-
-void Worker::worker_thread_params::set_exit(void)
-{
-	//lock mutex first
-	std::lock_guard<std::mutex> lock(get_set_lock);
-	do_exit = true;
-}
-
-void Worker::worker_thread_params::set_start_value(uint32_t value)
-{
-	//lock mutex first
-	std::lock_guard<std::mutex> lock(get_set_lock);
-	start_value = value;
+	WORKER_DEBUG << " Info: " << "Success: " << success_cnt  << " Failer: "<< failed_cnt << "\n";
 }

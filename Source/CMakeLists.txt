@@ -1,31 +1,35 @@
 #Specify the version being used as well as the language
-#cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8)
 
 #project name
-#project(Thread_with_SharedObject)
+project(ThreadSync_with_SharedObject)
 
-#Add include director in  include_dir variable
-#set(c_toolchain_path /usr/bin/gcc-4.8 CACHE INTERNAL "")
-#set(cxx_toolchain_path /usr/bin/g++-4.8 CACHE INTERNAL "")
-#set(cxx_flags "--std=c++11" CACHE INTERNAL "")
+#Set complier setting
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_C_COMPILER /usr/bin/gcc-4.8 CACHE PATH "" FORCE)
+set(CMAKE_CXX_COMPILER /usr/bin/g++-4.8 CACHE PATH "" FORCE)
 
-#set(CMAKE_C_COMPILER ${c_toolchain_path})
-#set(CMAKE_CXX_COMPILER ${cxx_toolchain_path})
-#set(CMAKE_CXX_FLAGS ${cxx_flags})
+#include direcotry 
+set(include_dir ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "")
 
-#Add main
-#file(GLOB app_src "main_app/*.cpp")
 
-#Add include director in  include_dir variable
-#set(include_dir ${PROJECT_SOURCE_DIR}/main_app CACHE INTERNAL "")
+#Set sub modules setting
+add_subdirectory(Shared_Object)
+add_subdirectory(worker)
 
-#Add modules 
-#add_subdirectory(Shared_Object)
-#add_subdirectory(Shared_Object)
+find_package (Shared_Object)
+find_package (Worker_Object)
 
-#Add include director 
-#include_directories(${include_dir})
+#Set main application
+file(GLOB app_src "main_app/*.cpp")
 
-#add_executable(test_app ${app_src})
-#target_link_libraries (test_app SharedObject)
+#Set external package
+find_package (Threads)
 
+#Create binary 
+add_executable(test_app ${app_src})
+include_directories(${include_dir})
+target_link_libraries (test_app Shared_Object)
+target_link_libraries (test_app Worker_Object)
+target_link_libraries (test_app pthread)

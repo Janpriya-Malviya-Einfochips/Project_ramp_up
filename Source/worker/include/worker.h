@@ -10,9 +10,7 @@
 #include<thread>
 #include<mutex>
 #include<functional>
-//#include<shared_ptr>
 #include<condition_variable>
-
 
 /**
  * \class worker
@@ -22,11 +20,10 @@ class Worker
 {
 public:
 
-    /**
+	/**
      * \brief Callback function for writer & verifier threads
      */
-	typedef std::function<void(uint32_t start_from,uint32_t faier_cnt )> proc_callback;
-
+	typedef std::function<uint16_t (uint16_t start_from )> proc_callback;
 
 private:
 
@@ -35,89 +32,101 @@ private:
 	 * \brief Single thread parameters. Thread will wait for condition  and when every
 	 * 		  ticked it will call register callback for process
 	 */
-	typedef struct worker_thread_params
+	typedef struct Worker_thread_params
 	{
 		//! flag to indicate to close thread
 		bool do_exit;
 
-		//! start value for verify or write in shared object
-		uint32_t start_value;
+		//! mutex lock for waiting condition
+		std::mutex proc_condition_lock;
 
-		//! number of failed attempts
-		uint32_t failed_cnt;
-
-		//! number of success attempts
-		uint32_t success_cnt;
-
-		//! name of thread
-		std::string thread_name;
+		//! condition  variable to tick
+		std::condition_variable proc_condition_event;
 
 		//! thread object
 		std::thread proc_thread;
 
-		//! mutex lock for waiting condition
-		std::mutex proc_condition_lock;
-
-		//! mutex lock for pocess callbacks
+		//! mutex lock for process callbacks
 		std::mutex get_set_lock;
 
-		//! condition  variable to tick
-		std::condition_variable proc_event;
+		Worker_thread_params() :do_exit(false)
+		{
+		}
 
-		//! call back function for verifier or writer
-		proc_callback callback;
-
-		worker_thread_params() :do_exit(false), callback(nullptr),
-			start_value(0), failed_cnt(0), success_cnt(0)
+		~Worker_thread_params()
 		{
 
 		}
 
-	    /**
-	     * Set exit
-	     */
-		void set_exit(void);
+		/**
+		 * Thread function to start thread
+		 */
+		void  thread_function(Worker& WorkerObject);
 
-	    /**
-	     * Set exit
-	     */
-		void set_start_value(uint32_t value);
+		/**
+		 * Thread function to start thread
+		 */
+		void  start_thread(Worker& WorkerObject);
 
+		/**
+		 * Thread function to start thread
+		 */
+		void  stop_thread(void);
 
-	}W_thread;
+		/**
+		 * Thick thread and perform registered action
+		 */
+		void process_tick(uint32_t value);
+
+	}Wrkr_th;
+
+	//! call back function for verifier or writer
+	proc_callback Writer_callback;
+
+	//! call back function for verifier or writer
+	proc_callback Verifier_callback;
+
+	//! number of failed attempts
+	uint32_t failed_cnt;
+
+	//! number of success attempts
+	uint32_t success_cnt;
 
 	//! Name of worker
 	std::string worker_name;
 
 	//! Thread  object  for write process
-	W_thread writer_thread;
+	Wrkr_th worker_thread;
 
-	//! Thread  object  for verify process
-	W_thread verifier_thread;
+	//! start value for verify or write in shared object
+	uint32_t start_value;
 
-	//! Next worker
-	//std::weak_ptr<Worker> next_worker;
+	//! Verifier worker
+	std::weak_ptr<Worker> mNxt_worker;
 
 private:
 
+	//! Do work
+	void do_work(void);
+
+
+public:
+
     /**
-     * Thread function for start sepecific task
+     * Worker constructor
      *
-     * \param[in] W_thread& thread
-     * - worker thread object
+     * \param[in] name 			: Name of worker
+     * \param[in] proc_callback : write callback to write on shared object
+     * \param[in] verifier		: verify callback to verify shared object
      */
-	void  thread_function(W_thread& thread);
+	Worker(std::string name, proc_callback writer,proc_callback verifier);
 
     /**
-     * Stop thread
-     *
-     * \param[in] W_thread& thread
-     * - worker thread object
+     * Worker distructor
      */
-	void stop_thread(W_thread& thread);
+	~Worker();
 
-
-    /**
+	/**
      * Start process to start all thread
      * \param[in] void
      */
@@ -129,23 +138,6 @@ private:
      */
 	void  stop_process();
 
-public:
-
-    /**
-     * Worker constructor
-     *
-     * \param[in] name 			: Name of worker
-     * \param[in] proc_callback : write callback to write on shared object
-     * \param[in] verifier		: verify callback to verify shared object
-     */
-	Worker(std::string name,proc_callback writer,proc_callback verifier);
-
-    /**
-     * Worker distructor
-     */
-	~Worker();
-
-
     /**
      * Start writing on shared object
      * \param[in] value		: Start value
@@ -153,10 +145,16 @@ public:
 	void  write_value(uint32_t value);
 
     /**
+     * Start writing on shared object
+     * \param[in] value		: Start value
+     */
+	uint32_t  verify_value(uint32_t value,proc_callback verifier);
+
+	/**
      * Start verifing on shared object
      * \param[in] value		: Start value
      */
-	void  verify_value(uint32_t value);
+	void  set_next_worker(std::weak_ptr<Worker> next_worker);
 
     /**
      * Get worker name
@@ -164,12 +162,9 @@ public:
      */
 	std::string get_worker_name();
 
-	//add success count
-	//void add_success(uint32_t count);
-
-	//add success count
-	//void add_failer(uint32_t count);
-
-	//Print stats
-	//void print_stats();
+    /**
+     * Get worker name
+     * \return string : worker name
+     */
+	void print_statics(void);
 };

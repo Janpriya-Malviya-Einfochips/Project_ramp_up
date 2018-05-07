@@ -6,127 +6,62 @@
 */
 
 #include <iostream>
-#include <unistd.h>
-#include <memory>
 
 #include "shared_object.h"
 
 
-std::string shared_object :: module_dbug_phrase = "SHED_OBJ:";
-
-shared_object :: shared_object(void) : shm_id(0) , do_once(false)
+shared_object :: shared_object(void)
 {
-	init_shared_block();
+	// assign memory
+	data.resize(block_size);
 }
 
 shared_object::~shared_object(void)
 {
-	//Destroyed memory
-	distroyed_shared_block();
 }
 
-void shared_object::init_shared_block()
+
+uint16_t shared_object::write_object(uint16_t start_from)
 {
-	// lock init function
-	//std::lock_guard<std::mutex> lock(shm_lock);
+	uint16_t write_word_count = 0;
 
-	if(false == do_once)
+	try
 	{
-		// create shared memory block with private key
-		shm_id = shmget(IPC_PRIVATE,block_size * sizeof(uint64_t),( 0666 |IPC_CREAT | IPC_EXCL));
+		std::lock_guard<std::mutex> lock(object_locker);
 
-		// Is shared memory allocated
-		if (shm_id == -1)
+		for(write_word_count = 0 ; write_word_count < block_size ; ++write_word_count,++start_from)
 		{
-			//TODO : Throw execption
-			std::cout << module_dbug_phrase  << "  Error: " << "Fail to create shared object \n";
-			return;
+			data[write_word_count] = start_from;
 		}
-
-		// Shared memory created
-		std::cout << module_dbug_phrase  << "  Info: " << "Shared block created : id " << shm_id << "\n";
-
-		//Set init done
-		do_once = true;
 	}
+	catch(std::exception& e)
+	{
+		std::cout << "Shared_Obj:  " << " Error during write: " << e.what() << "\n";
+	}
+
+	return write_word_count;
 }
 
-void shared_object::distroyed_shared_block()
+uint16_t shared_object::verify_object(uint16_t start_from)
 {
-	// lock init function
-	//std::lock_guard<std::mutex> lock(shm_lock);
+	uint16_t failed_word_count = 0;
 
-	// is init done
-	if(do_once)
+	try
 	{
-		// delete shm memory object
-		if (shmctl(shm_id, IPC_RMID, nullptr) < 0)
+		std::lock_guard<std::mutex> lock(object_locker);
+
+		for(uint16_t idx = 0 ; idx < block_size ; ++idx,++start_from)
 		{
-			std::cout << module_dbug_phrase  << "  Error: " << "Fail to delete shared object\n";
-			return;
-		}
-		std::cout << module_dbug_phrase  << "  Info: " << "shared object deleted : id " << shm_id << "\n";
-	}
-}
-
-void shared_object::write_shm_block(uint16_t start_from, uint16_t& write_fail_cnt)
-{
-	uint64_t *shm_block = nullptr;
-
-	//attach shared memory
-	shm_block = static_cast<uint64_t *>(shmat(shm_id, nullptr, 0));
-
-	//memory attached
-	if (shm_block != (void *)-1)
-	{
-		for(uint16_t idx = 0 ; idx < block_size ; idx++)
-		{
-			//start writing in shared location
-			shm_block[idx] = start_from++;
-		}
-
-		//Detach memory
-		if (shmdt(shm_block) == -1)
-		{
-			std::cout << module_dbug_phrase  << "  Error: " << "Fail to detach  : id " << shm_id << "\n";
-		}
-	}
-	else
-	{
-		write_fail_cnt++;
-	}
-}
-
-void shared_object::verify_shm_block(uint16_t start_from,uint16_t& read_fail_cnt)
-{
-	uint64_t *shm_block = nullptr;
-
-	//attach shared memory
-	shm_block = static_cast<uint64_t *>(shmat(shm_id, nullptr, 0));
-
-	//memory attached
-	if (shm_block != (void *)-1)
-	{
-		//Verify block
-		for(uint16_t idx = 0 ; idx < block_size ; idx++)
-		{
-			if(shm_block[idx] != start_from)
+			if(data[idx] != start_from)
 			{
-				read_fail_cnt++;
+				failed_word_count++;
 			}
-
-			start_from++;
-		}
-
-		//Detach memory
-		if (shmdt(shm_block) == -1)
-		{
-			std::cout << module_dbug_phrase  << "  Error: " << "Fail to detach  : id " << shm_id << "\n";
 		}
 	}
-	else
+	catch(std::exception& e)
 	{
-		read_fail_cnt++;
+		std::cout << "Shared_Obj:  " << " Error during verifing: " << e.what() << "\n";
 	}
 
+	return failed_word_count;
 }
