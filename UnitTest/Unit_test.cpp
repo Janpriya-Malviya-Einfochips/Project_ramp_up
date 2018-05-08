@@ -101,14 +101,14 @@ SUITE(worker)
 
         // Start writing
         worker1->write_value(100);
-        usleep(1000);
+        usleep(2000);
         // verify value manually
         CHECK_EQUAL(0,sh_obj1.verify_object(100));
         CHECK_EQUAL(115,sh_obj2.verify_object(100));
 
         // Start writing
         worker2->write_value(200);
-        usleep(1000);
+        usleep(2000);
         // verify value manually
         CHECK_EQUAL(0,sh_obj2.verify_object(200));
         CHECK_EQUAL(115,sh_obj1.verify_object(200));
@@ -122,18 +122,18 @@ SUITE(worker)
         //Start worker one
         worker1->start_process();
         worker2->start_process();
-        usleep(1000);
+        usleep(2000);
 
         // Start writing
         worker1->write_value(100);
-        usleep(1000);
+        usleep(2000);
         // verify value manually
         CHECK_EQUAL(0,sh_obj1.verify_object(100));
         CHECK_EQUAL(115,sh_obj2.verify_object(100));
 
         // Start writing
         worker2->write_value(200);
-        usleep(1000);
+        usleep(2000);
         // verify value manually
         CHECK_EQUAL(0,sh_obj2.verify_object(200));
         CHECK_EQUAL(115,sh_obj1.verify_object(200));

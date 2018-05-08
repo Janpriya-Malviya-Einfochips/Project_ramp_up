@@ -26,6 +26,7 @@ void Exit_Singal_handler(int sig)
     std::cout << "\nCancling Primary thread due to signal event \n";
     pthread_cancel(gPrimaryThread.native_handle());
     do_exit = true;
+    fflush(stdout);
 }
 
 
@@ -99,7 +100,7 @@ int main()
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    std::cout.flush();
+    //std::cout.flush();
     gPrimaryThread.join();
     return 0;
 }

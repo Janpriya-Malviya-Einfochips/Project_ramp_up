@@ -90,7 +90,7 @@ void Worker::Worker_thread_params::start_thread(Worker& WorkerObject)
 void Worker::Worker_thread_params::stop_thread(void)
 {
     {
-        std::cout << "Worker Info: Stopping Worker\n";
+        //std::cout << "Worker Info: Stopping Worker\n";
 
         //lock mutex so no one can change parameters
         std::lock_guard<std::mutex> lock(get_set_lock);
@@ -103,11 +103,11 @@ void Worker::Worker_thread_params::stop_thread(void)
     }
 
     //cancle thrad force fully
-    pthread_cancel(proc_thread.native_handle());
+    //pthread_cancel(proc_thread.native_handle());
 
     //wait for rejoin
     proc_thread.join();
-    std::cout << "Worker Info: Worker Stopped\n";
+    //std::cout << "Worker Info: Worker Stopped\n";
 }
 
 void Worker::Worker_thread_params::thread_function(Worker& WorkerObject)
