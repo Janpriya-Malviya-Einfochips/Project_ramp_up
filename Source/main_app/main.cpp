@@ -47,10 +47,10 @@ void primary_thread()
 					std::bind(&shared_object::verify_object, &sh_obj[3], _1)));
 
 	//Setup up linked list
-	w1->set_next_worker(w2);
-	w2->set_next_worker(w3);
-	w3->set_next_worker(w4);
-	w4->set_next_worker(w1);
+	w1->set_verifier(w2);
+	w2->set_verifier(w3);
+	w3->set_verifier(w4);
+	w4->set_verifier(w1);
 
 	//start threads
 	w1->start_process();

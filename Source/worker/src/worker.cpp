@@ -13,8 +13,8 @@ using namespace std;
 
 #define WORKER_DEBUG std::cout << "Worker[" << worker_name << "] ID[" << worker_id << "]"
 
-Worker::Worker(std::string name, proc_callback writer, proc_callback verifier) :
-		worker_name(name), Writer_callback(writer), Verifier_callback(verifier), failed_cnt(0), success_cnt(0)
+Worker::Worker(std::string name, proc_callback writer_cb, proc_callback verifier_cb) :
+		worker_name(name), Writer_callback(writer_cb), Verifier_callback(verifier_cb), failed_cnt(0), success_cnt(0)
 {
 	set_object_unique_id();
 	WORKER_DEBUG << " Info: " << "Worker created \n";
@@ -51,7 +51,6 @@ void Worker::start_process()
 	//Exit all running threads
 	try
 	{
-		//WORKER_DEBUG << " Info: " << "Starting\n";
 		//Start writer thread , which will wait for start writing
 		worker_thread.start_thread(*this);
 	}
@@ -59,7 +58,6 @@ void Worker::start_process()
 	{
 		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-	//WORKER_DEBUG << " Info: " << "Worker started\n";
 }
 
 void Worker::stop_process()
@@ -67,16 +65,12 @@ void Worker::stop_process()
 	//Exit all running threads
 	try
 	{
-		//WORKER_DEBUG << " Info: " << "Stopping\n";
-
-		//Start writer thread , which will wait for start writing
 		worker_thread.stop_thread();
 	}
 	catch(std::exception& e)
 	{
 		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-	//WORKER_DEBUG << " Info: " << "Worker stopped successfully\n";
 }
 
 
@@ -105,6 +99,9 @@ void Worker::Worker_thread_params::stop_thread(void)
 		proc_condition_event.notify_one();
 	}
 
+	//cancle thrad force fully
+	pthread_cancel(proc_thread.native_handle());
+
 	//wait for rejoin
 	proc_thread.join();
 }
@@ -114,7 +111,6 @@ void Worker::Worker_thread_params::thread_function(Worker& WorkerObject)
 	while(true)
 	{
 		//std::cout << "Worker[" << WorkerObject.get_worker_name() << "]  " << " Thread running.\n";
-
 		//Waiting on condition variable
 		std::unique_lock<std::mutex> lock(proc_condition_lock);
 		proc_condition_event.wait(lock);
@@ -164,7 +160,7 @@ void Worker :: do_work(void)
 			write_success_cnt = Writer_callback(start_value);
 
 			//Inform next work to verify my data
-			std::shared_ptr<Worker> ptr = mNxt_worker.lock();
+			std::shared_ptr<Worker> ptr = mVerifier_worker.lock();
 
 			//call Verifier
 			if(ptr.use_count())
@@ -192,8 +188,6 @@ void Worker :: do_work(void)
 
 void Worker::write_value(uint32_t value)
 {
-	//WORKER_DEBUG << " Info: " << "Start writing on shared object : start-> " << value << "\n";
-
 	//lock mutex so no one can change parameters
 	std::lock_guard<std::mutex> lock(worker_thread.get_set_lock);
 
@@ -202,37 +196,34 @@ void Worker::write_value(uint32_t value)
 
 	//Notify thread
 	worker_thread.proc_condition_event.notify_one();
-	//WORKER_DEBUG << " Info: " << "Inform worker successfully \n";
 }
 
-void Worker :: set_next_worker(std::weak_ptr<Worker> next_worker)
+void Worker :: set_verifier(std::weak_ptr<Worker> next_worker)
 {
 	//lock mutex so no one can change parameters
 	std::lock_guard<std::mutex> lock(worker_thread.get_set_lock);
 
 	//set next worker
-	mNxt_worker =  next_worker;
+	mVerifier_worker =  next_worker;
 }
 
-uint32_t Worker :: verify_value(uint32_t value,proc_callback verifier)
+uint32_t Worker :: verify_value(uint32_t value,proc_callback verifier_cb)
 {
 	//success count
-	uint32_t verify_failed_cnt = 0;
+	uint32_t failed_cnt = 0;
 
-	//WORKER_DEBUG << " Info: " << "Verifying on shared object : start-> " << value << "\n";
 	try
 	{
-		if(verifier)
+		if(verifier_cb)
 		{
-			//WORKER_DEBUG << " Info: " << "Calling verifier \n";
-			verify_failed_cnt = verifier(value);
+			failed_cnt = verifier_cb(value);
 		}
 	}
 	catch(std::exception& e)
 	{
 		WORKER_DEBUG << " Error: " << e.what() << " Fn:" << __func__ << "line:" << __LINE__ << "\n";
 	}
-	return verify_failed_cnt;
+	return failed_cnt;
 }
 
 std::string Worker::get_worker_name()
@@ -242,5 +233,5 @@ std::string Worker::get_worker_name()
 
 void Worker::print_statics()
 {
-	WORKER_DEBUG << " Info: " << "Success: " << success_cnt  << " Failer: "<< failed_cnt << "\n";
+	WORKER_DEBUG << " Info: " << "Success Count: " << success_cnt  << " Failure Count: "<< failed_cnt << "\n";
 }

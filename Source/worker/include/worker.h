@@ -59,22 +59,22 @@ private:
 		}
 
 		/**
-		 * Thread function to start thread
+		 * Thread function who waiting  for write on shared object
 		 */
 		void  thread_function(Worker& WorkerObject);
 
 		/**
-		 * Thread function to start thread
+		 * Start thread
 		 */
 		void  start_thread(Worker& WorkerObject);
 
 		/**
-		 * Thread function to start thread
+		 * Stop thread
 		 */
 		void  stop_thread(void);
 
 		/**
-		 * Thick thread and perform registered action
+		 * tick thread to do work
 		 */
 		void process_tick(uint32_t value);
 
@@ -105,14 +105,18 @@ private:
 	uint32_t start_value;
 
 	//! Verifier worker
-	std::weak_ptr<Worker> mNxt_worker;
+	std::weak_ptr<Worker> mVerifier_worker;
 
 private:
 
-	//! Do work
+	/**
+	 * Main work process called for thread
+	 */
 	void do_work(void);
 
-	//! set unique id
+	/**
+	 * Get unique id for each worker
+	 */
 	void  set_object_unique_id();
 public:
 
@@ -120,10 +124,10 @@ public:
      * Worker constructor
      *
      * \param[in] name 			: Name of worker
-     * \param[in] proc_callback : write callback to write on shared object
-     * \param[in] verifier		: verify callback to verify shared object
+     * \param[in] writer_cb 	: write callback to write on shared object
+     * \param[in] verifier_cb	: verify callback to verify shared object
      */
-	Worker(std::string name, proc_callback writer,proc_callback verifier);
+	Worker(std::string name, proc_callback writer_cb,proc_callback verifier_cb);
 
     /**
      * Worker distructor
@@ -149,16 +153,18 @@ public:
 	void  write_value(uint32_t value);
 
     /**
-     * Start writing on shared object
-     * \param[in] value		: Start value
+     * Verify value write on shared object using callback
+     * \param[in] value				: Start value
+     * \param[in] verifier_cb		: Registered Callback for verify
+     * \return failer_count
      */
-	uint32_t  verify_value(uint32_t value,proc_callback verifier);
+	uint32_t  verify_value(uint32_t value,proc_callback verifier_cb);
 
 	/**
-     * Start verifing on shared object
-     * \param[in] value		: Start value
+     * Set point of worker whose responsibility to Verify shared object
+     * \param[in] verifier_worker		: Worker who able to verify
      */
-	void  set_next_worker(std::weak_ptr<Worker> next_worker);
+	void  set_verifier(std::weak_ptr<Worker> verifier_worker);
 
     /**
      * Get worker name
@@ -167,8 +173,7 @@ public:
 	std::string get_worker_name();
 
     /**
-     * Get worker name
-     * \return string : worker name
+     * Print failed and success count
      */
 	void print_statics(void);
 };

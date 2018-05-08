@@ -13,7 +13,6 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++-4.8 CACHE PATH "" FORCE)
 #include direcotry 
 set(include_dir ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "")
 
-
 #Set sub modules setting
 add_subdirectory(Shared_Object)
 add_subdirectory(worker)
@@ -27,9 +26,19 @@ file(GLOB app_src "main_app/*.cpp")
 #Set external package
 find_package (Threads)
 
-#Create binary 
-add_executable(test_app ${app_src})
+#Create Main binary 
+add_executable(ramp_up_test_app ${app_src})
 include_directories(${include_dir})
-target_link_libraries (test_app Shared_Object)
-target_link_libraries (test_app Worker_Object)
-target_link_libraries (test_app pthread)
+target_link_libraries (ramp_up_test_app Shared_Object)
+target_link_libraries (ramp_up_test_app Worker_Object)
+target_link_libraries (ramp_up_test_app pthread)
+
+#Create Unit test
+find_package (UnitTest++ REQUIRED)
+file(GLOB unit_test_app_src "../UnitTest/*.cpp")
+include_directories(${UTPP_INCLUDE_DIRS})
+add_executable(unit_test_app ${unit_test_app_src})
+target_link_libraries (unit_test_app UnitTest++)
+target_link_libraries (unit_test_app Shared_Object)
+target_link_libraries (unit_test_app Worker_Object)
+target_link_libraries (unit_test_app pthread)
