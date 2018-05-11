@@ -1,4 +1,5 @@
-# Project_ramp_up
+# Multithread Mini Project
+
 Write a multi-thread program with following requirements:
 - There are 4 worker threads and 1 primary thread
 
