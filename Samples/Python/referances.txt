@@ -1,0 +1,5 @@
+https://docs.pytest.org/en/latest/fixture.html
+https://docs.pytest.org/en/latest/unittest.html
+https://docs.pytest.org/en/latest/_modules/_pytest/fixtures.html
+http://programeveryday.com/post/pytest-creating-and-using-fixtures-for-streamlined-testing/
+http://pythontesting.net/framework/pytest/pytest-fixtures-easy-example/
